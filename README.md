@@ -121,3 +121,11 @@ Food Decision Agent/
 ## 📝 License
 
 This project is for educational purposes.
+
+## OUTPUT
+
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/a29e4406-d830-48c7-bb91-b6e469b17ba0" />
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/16e54df6-c9a7-46c1-8f3f-46fdefde0386" />
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/4b7d61e4-405c-4863-8765-12fc1a0a95eb" />
+
+
