@@ -1,0 +1,10 @@
+{
+  "dietary_restrictions": [],
+  "disliked_ingredients": [],
+  "preferred_cuisines": [],
+  "spice_preference": "medium",
+  "cooking_equipment": [],
+  "default_servings": 2,
+  "budget_preference_inr": 500,
+  "past_meals": []
+}
