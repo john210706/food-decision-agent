@@ -8,7 +8,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv()
+load_dotenv(Path(__file__).parent / ".env")
 
 # ─── Paths ───────────────────────────────────────────────
 BASE_DIR = Path(__file__).parent
@@ -19,7 +19,7 @@ MEMORY_FILE = DATA_DIR / "user_memory.json"
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 
 # ─── LLM Settings ────────────────────────────────────────
-LLM_MODEL = "gemini-3.6-flash"
+LLM_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
 LLM_TEMPERATURE = 0.4
 
 # ─── TheMealDB API ───────────────────────────────────────

@@ -192,6 +192,9 @@ def estimate_meal_cost(ingredients_json: str, servings: int = 2) -> str:
     Returns:
         A detailed cost breakdown per ingredient plus total cost and per-serving cost.
     """
+    if servings < 1:
+        return "Servings must be a positive integer."
+
     try:
         ingredients = json.loads(ingredients_json)
     except json.JSONDecodeError:
@@ -199,6 +202,11 @@ def estimate_meal_cost(ingredients_json: str, servings: int = 2) -> str:
 
     if not isinstance(ingredients, list):
         return "Please provide a list of ingredient names as a JSON array."
+
+    if not isinstance(ingredients, list) or not ingredients or not all(
+        isinstance(item, str) and item.strip() for item in ingredients
+    ):
+        return "Provide a non-empty JSON list of ingredient names."
 
     results = []
     total_cost = 0.0
@@ -225,8 +233,8 @@ def estimate_meal_cost(ingredients_json: str, servings: int = 2) -> str:
             elif unit == "piece" or unit == "bunch" or unit == "pack":
                 # For items sold by piece, estimate differently
                 if category == "protein" and "egg" in ingredient.lower():
-                    item_cost = unit_price * max(2, servings)  # 2 eggs per serving
-                    results.append(f"  {ingredient}: ₹{item_cost:.0f} ({max(2, servings)} pieces × ₹{unit_price}/piece)")
+                    item_cost = unit_price * (2 * servings)  # 2 eggs per serving
+                    results.append(f"  {ingredient}: ₹{item_cost:.0f} ({(2 * servings)} pieces × ₹{unit_price}/piece)")
                     total_cost += item_cost
                     continue
                 else:

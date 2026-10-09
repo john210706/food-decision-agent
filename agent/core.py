@@ -3,6 +3,9 @@ Food Decision Agent — Core
 Sets up the ReAct agent using LangGraph with Google Gemini and all registered tools.
 """
 
+import errno
+
+import httpx
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import create_react_agent
 
@@ -40,7 +43,7 @@ def create_food_agent():
     Returns:
         A LangGraph ReAct agent executor that can be invoked with messages.
     """
-    if not GOOGLE_API_KEY:
+    if not GOOGLE_API_KEY or GOOGLE_API_KEY.startswith("your_"):
         raise ValueError(
             "GOOGLE_API_KEY not set! Please create a .env file with your "
             "Google AI Studio API key. Get one free at: https://aistudio.google.com/"
@@ -50,6 +53,9 @@ def create_food_agent():
     llm = ChatGoogleGenerativeAI(
         model=LLM_MODEL,
         google_api_key=GOOGLE_API_KEY,
+        temperature=LLM_TEMPERATURE,
+        timeout=60,
+        max_retries=3,
     )
 
     # Load user memory to inject into system prompt
@@ -57,9 +63,15 @@ def create_food_agent():
     memory_summary = memory_store.get_summary()
     system_prompt = build_system_prompt(memory_summary)
 
-    # Create the ReAct agent using LangGraph's prebuilt helper
+    tool_model = llm.bind_tools(ALL_TOOLS)
+
+    def select_model(state, runtime):
+        # Reserve the last model round for an answer, with tools disabled.
+        tool_rounds = sum(bool(getattr(msg, "tool_calls", None)) for msg in state["messages"])
+        return llm if tool_rounds >= MAX_AGENT_ITERATIONS - 1 else tool_model
+
     agent = create_react_agent(
-        model=llm,
+        model=select_model,
         tools=ALL_TOOLS,
         prompt=system_prompt,
     )
@@ -87,65 +99,40 @@ def _clean_content(content) -> str:
     return str(content)
 
 
-import time
-import logging
-
-FALLBACK_MODELS = ["gemini-3.5-flash", "gemini-flash-latest"]
-
 
 def run_agent(agent, user_message: str, chat_history: list = None):
-    """
-    Run the agent with user message, with automatic retry and model fallback for 429 rate limits.
-    """
-    messages = []
-    if chat_history:
-        for role, content in chat_history:
-            messages.append({"role": role, "content": content})
+    """Run a bounded tool loop and return the answer and tool trace."""
+    messages = [
+        {"role": role, "content": content}
+        for role, content in (chat_history or [])
+    ]
     messages.append({"role": "user", "content": user_message})
-
-    # Try running primary agent, with automatic retry if rate limited
-    max_retries = 3
-    result = None
-
-    for attempt in range(max_retries):
-        try:
-            result = agent.invoke(
-                {"messages": messages},
-                config={"recursion_limit": MAX_AGENT_ITERATIONS}
-            )
-            break
-        except Exception as e:
-            err_str = str(e)
-            if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                if attempt < max_retries - 1:
-                    wait_time = 15 * (attempt + 1)
-                    time.sleep(wait_time)
-                    # Try creating agent with fallback model
-                    try:
-                        fallback_model = FALLBACK_MODELS[attempt % len(FALLBACK_MODELS)]
-                        fallback_llm = ChatGoogleGenerativeAI(
-                            model=fallback_model,
-                            google_api_key=GOOGLE_API_KEY,
-                        )
-                        fallback_agent = create_react_agent(
-                            model=fallback_llm,
-                            tools=ALL_TOOLS,
-                            prompt=build_system_prompt(MemoryStore().get_summary()),
-                        )
-                        result = fallback_agent.invoke(
-                            {"messages": messages},
-                            config={"recursion_limit": MAX_AGENT_ITERATIONS}
-                        )
-                        break
-                    except Exception:
-                        continue
-                else:
-                    raise Exception("⏳ Free tier API rate limit reached (20 requests/minute). Please wait 30 seconds and try again!") from e
-            else:
-                raise e
-
-    if not result:
-        raise Exception("Could not get a response from the AI model. Please try again in a few seconds.")
+    try:
+        result = agent.invoke(
+            {"messages": messages},
+            config={"recursion_limit": 2 * MAX_AGENT_ITERATIONS + 1},
+        )
+    except Exception as exc:
+        if isinstance(exc, httpx.TransportError) or (
+            isinstance(exc, OSError) and exc.errno in {
+                errno.ENETUNREACH, errno.EHOSTUNREACH, errno.ECONNRESET,
+                errno.ECONNREFUSED, errno.ETIMEDOUT,
+            }
+        ):
+            raise RuntimeError(
+                "Could not reach Gemini after retrying. Check the server's internet "
+                "connection and retry your request."
+            ) from exc
+        if "503" in str(exc) or "UNAVAILABLE" in str(exc):
+            raise RuntimeError(
+                "Gemini is temporarily busy. Your request is saved; please retry shortly."
+            ) from exc
+        if "429" in str(exc) or "RESOURCE_EXHAUSTED" in str(exc):
+            raise RuntimeError(
+                "Gemini quota or rate limit reached. Check your API quota "
+                "in Google AI Studio, then retry when quota is available."
+            ) from exc
+        raise
 
     # Extract the final response and intermediate steps
     all_messages = result.get("messages", [])
@@ -154,7 +141,7 @@ def run_agent(agent, user_message: str, chat_history: list = None):
     final_output = ""
     steps = []
 
-    for msg in all_messages:
+    for msg in all_messages[len(messages):]:
         msg_type = msg.__class__.__name__
 
         if msg_type == "AIMessage":

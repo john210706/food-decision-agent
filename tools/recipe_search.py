@@ -14,14 +14,14 @@ def _parse_meal(meal: dict) -> str:
     name = meal.get("strMeal", "Unknown")
     category = meal.get("strCategory", "N/A")
     area = meal.get("strArea", "N/A")
-    instructions = meal.get("strInstructions", "No instructions available.")
+    instructions = (meal.get("strInstructions") or "No instructions available.")
     thumbnail = meal.get("strMealThumb", "")
 
     # Extract ingredients and measures (TheMealDB uses strIngredient1..20)
     ingredients = []
     for i in range(1, 21):
         ingredient = meal.get(f"strIngredient{i}", "")
-        measure = meal.get(f"strMeasure{i}", "")
+        measure = (meal.get(f"strMeasure{i}") or "")
         if ingredient and ingredient.strip():
             ingredients.append(f"  - {measure.strip()} {ingredient.strip()}")
 

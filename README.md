@@ -51,21 +51,24 @@ Memory is stored locally in `data/user_memory.json` and persists between session
 
 ### Step 1: Install dependencies
 ```bash
-pip install -r requirements.txt
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+python -m pip install -r requirements.txt
 ```
 
 ### Step 2: Configure API key
 ```bash
-copy .env.example .env
+cp .env.example .env  # Windows: copy .env.example .env
 ```
 Edit `.env` and add your free Gemini API key from [Google AI Studio](https://aistudio.google.com/):
 ```
 GOOGLE_API_KEY=your_actual_key_here
+GEMINI_MODEL=gemini-3.1-flash-lite
 ```
 
 ### Step 3: Run the app
 ```bash
-streamlit run app.py
+python -m streamlit run app.py
 ```
 
 The app will open in your browser at `http://localhost:8501`.
@@ -112,7 +115,7 @@ Food Decision Agent/
 |:---|:---|
 | **Language** | Python 3.10+ |
 | **Agent Framework** | LangChain + LangGraph (ReAct agent) |
-| **LLM** | Google Gemini 2.5 Flash (free tier) |
+| **LLM** | Google Gemini Flash (free tier) |
 | **UI** | Streamlit |
 | **Web Search** | DuckDuckGo (free, no API key) |
 | **Recipe Data** | TheMealDB API (free, no signup) |
@@ -129,3 +132,24 @@ This project is for educational purposes.
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/4b7d61e4-405c-4863-8765-12fc1a0a95eb" />
 
 
+
+
+## Verification and limits
+
+Run `python -m unittest discover -s tests -v` for offline regression checks.
+Run commands from the `food-decision-agent` directory. Set `GEMINI_MODEL`
+to another model available to your API key if needed. Quota errors require
+available quota in Google AI Studio; switching models is not guaranteed to help.
+
+This is a local, single-user application: all browser sessions share the same
+preferences file. Price and nutrition tools use approximate quantities, not
+the recipe's measured ingredient amounts. Nutrition database values mix cooked
+and raw ingredients; these estimates are not precise dietary calculations.
+
+
+Temporary connection failures and Gemini service errors are retried up to three
+API attempts per model request. If they persist, the chat preserves your request
+and shows **Retry last request** without adding a duplicate message. The app
+still requires internet access and available Gemini service/quota.
+The agent reserves its final model round for an answer with tool calls disabled,
+so repeated tool requests cannot consume the entire execution limit.

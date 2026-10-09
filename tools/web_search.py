@@ -5,7 +5,7 @@ No API key required.
 """
 
 from langchain_core.tools import tool
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 from config import MAX_SEARCH_RESULTS
 
 
@@ -31,7 +31,7 @@ def web_search(query: str) -> str:
         A formatted string with top search results including title, snippet, and URL.
     """
     try:
-        with DDGS(timeout=3) as ddgs:
+        with DDGS(timeout=10) as ddgs:
             results = list(ddgs.text(query, max_results=MAX_SEARCH_RESULTS))
 
         if not results:

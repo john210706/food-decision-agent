@@ -78,6 +78,9 @@ def update_user_preferences(preferences_json: str) -> str:
     except json.JSONDecodeError as e:
         return f"Invalid JSON format: {str(e)}. Please provide valid JSON."
 
+    if not isinstance(updates, dict):
+        return "Preferences must be a JSON object."
+
     valid_keys = {
         "dietary_restrictions", "disliked_ingredients", "preferred_cuisines",
         "spice_preference", "cooking_equipment", "default_servings",
@@ -89,7 +92,10 @@ def update_user_preferences(preferences_json: str) -> str:
     if not filtered:
         return f"No valid preference keys found. Valid keys are: {', '.join(valid_keys)}"
 
-    updated_data = _store.update(filtered)
+    try:
+        _store.update(filtered)
+    except ValueError as exc:
+        return f"Invalid preferences: {exc}"
     updated_keys = list(filtered.keys())
 
     return (

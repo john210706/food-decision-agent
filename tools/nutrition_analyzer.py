@@ -163,10 +163,18 @@ def analyze_nutrition(ingredients_json: str, servings: int = 2, goal: str = "") 
     Returns:
         Nutritional breakdown per serving with goal compliance check.
     """
+    if servings < 1:
+        return "Servings must be a positive integer."
+
     try:
         ingredients = json.loads(ingredients_json)
     except json.JSONDecodeError:
         return "Invalid JSON. Provide a list like: '[\"chicken\", \"rice\", \"onion\"]'"
+
+    if not isinstance(ingredients, list) or not ingredients or not all(
+        isinstance(item, str) and item.strip() for item in ingredients
+    ):
+        return "Provide a non-empty JSON list of ingredient names."
 
     total = {"calories": 0, "protein": 0, "carbs": 0, "fat": 0, "fiber": 0}
     details = []
@@ -176,7 +184,7 @@ def analyze_nutrition(ingredients_json: str, servings: int = 2, goal: str = "") 
         info = _find_nutrition(ingredient)
         if info:
             category = _categorize(ingredient)
-            qty_g = SERVING_QUANTITIES.get(category, 100)
+            qty_g = SERVING_QUANTITIES.get(category, 100) * servings
             factor = qty_g / 100.0  # nutrition DB is per 100g
 
             item_nutrition = {

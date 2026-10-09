@@ -14,12 +14,12 @@ class MemoryStore:
     """JSON-backed persistent memory for user preferences."""
 
     def __init__(self, filepath: Path = MEMORY_FILE):
-        self.filepath = filepath
+        self.filepath = Path(filepath)
         self._ensure_file_exists()
 
     def _ensure_file_exists(self):
         """Create the data directory and default memory file if they don't exist."""
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        self.filepath.parent.mkdir(parents=True, exist_ok=True)
         if not self.filepath.exists():
             self._write_raw(DEFAULT_MEMORY)
 
@@ -48,7 +48,7 @@ class MemoryStore:
         data = self._read_raw()
         return data.get(key, default)
 
-    def update(self, updates: dict):
+    def update(self, updates: dict, *, replace_lists: bool = False):
         """
         Merge-update preferences. Lists are extended (deduplicated), 
         scalars are overwritten.
@@ -56,10 +56,31 @@ class MemoryStore:
         Example:
             update({"disliked_ingredients": ["mushroom"], "spice_preference": "high"})
         """
+        if not isinstance(updates, dict):
+            raise ValueError("Preferences must be a JSON object.")
+        for key, value in updates.items():
+            if key not in DEFAULT_MEMORY:
+                raise ValueError(f"Unknown preference: {key}")
+            if isinstance(DEFAULT_MEMORY[key], list):
+                if not isinstance(value, list):
+                    raise ValueError(f"{key} must be a list.")
+                if key == "past_meals":
+                    if not all(isinstance(v, dict) and isinstance(v.get("name"), str)
+                               and isinstance(v.get("rating", 0), int)
+                               and 0 <= v.get("rating", 0) <= 5 for v in value):
+                        raise ValueError("Past meals require a name and rating from 0 to 5.")
+                elif not all(isinstance(v, str) and v.strip() for v in value):
+                    raise ValueError(f"{key} must contain non-empty strings.")
+            elif key == "spice_preference":
+                if value not in ("low", "medium", "high"):
+                    raise ValueError("Spice preference must be low, medium, or high.")
+            elif type(value) is not int or value < 1:
+                raise ValueError(f"{key} must be a positive integer.")
+
         data = self._read_raw()
 
         for key, value in updates.items():
-            if key in data and isinstance(data[key], list) and isinstance(value, list):
+            if not replace_lists and key in data and isinstance(data[key], list) and isinstance(value, list):
                 # Extend list and deduplicate while preserving order
                 combined = data[key] + [v for v in value if v not in data[key]]
                 data[key] = combined

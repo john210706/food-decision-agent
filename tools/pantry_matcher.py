@@ -46,16 +46,16 @@ def _is_match(recipe_ingredient: str, pantry_item: str) -> bool:
     r = _normalize(recipe_ingredient)
     p = _normalize(pantry_item)
 
-    # Direct or substring match
-    if r == p or r in p or p in r:
+    # Only exact names or explicit aliases count as available.
+    if r == p:
         return True
 
     # Check aliases
     for canonical, aliases in ALIASES.items():
         canon_norm = _normalize(canonical)
         all_forms = [canon_norm] + [_normalize(a) for a in aliases]
-        if any(form in r or r in form for form in all_forms):
-            if any(form in p or p in form for form in all_forms):
+        if r in all_forms:
+            if p in all_forms:
                 return True
 
     return False
@@ -90,6 +90,11 @@ def match_pantry_ingredients(recipe_ingredients_json: str, pantry_items_json: st
         pantry_items = json.loads(pantry_items_json)
     except json.JSONDecodeError:
         return "Invalid JSON. Provide two JSON lists of ingredient names."
+
+    if not all(isinstance(items, list) and all(
+        isinstance(item, str) and item.strip() for item in items
+    ) for items in (recipe_ingredients, pantry_items)):
+        return "Provide JSON lists containing non-empty ingredient names."
 
     matched = []
     missing = []

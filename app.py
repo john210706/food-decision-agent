@@ -52,9 +52,11 @@ def display_agent_steps(steps):
             st.markdown("---")
 
 
-def process_user_input(prompt: str):
+def process_user_input(prompt: str, *, retry: bool = False):
     """Process user input through the agent and display results."""
-    st.session_state.messages.append({"role": "user", "content": prompt})
+    if not retry:
+        st.session_state.messages.append({"role": "user", "content": prompt})
+    st.session_state.pop("request_error", None)
 
     # Build chat history for context
     chat_history = []
@@ -87,11 +89,13 @@ def process_user_input(prompt: str):
                 )
             except Exception as e:
                 status.update(label="❌ Agent error", state="error")
-                st.error(f"Agent encountered an error: {str(e)}")
-                result = {"output": f"Sorry, I encountered an error: {str(e)}. Please try again.", "steps": []}
+                st.session_state.request_error = str(e)
+                st.session_state.failed_prompt = prompt
+                return
 
         st.markdown(result["output"])
 
+    st.session_state.pop("failed_prompt", None)
     st.session_state.messages.append({
         "role": "assistant",
         "content": result["output"],
@@ -157,7 +161,7 @@ with st.sidebar:
     with st.expander("✏️ Edit Preferences", expanded=False):
         new_diet = st.multiselect(
             "Dietary Restrictions",
-            ["vegetarian", "vegan", "gluten-free", "lactose-free", "halal", "jain"],
+            list(dict.fromkeys(["vegetarian", "vegan", "gluten-free", "lactose-free", "halal", "jain"] + memory.get("dietary_restrictions", []))),
             default=memory.get("dietary_restrictions", []),
         )
         new_dislikes = st.text_input(
@@ -166,7 +170,7 @@ with st.sidebar:
         )
         new_cuisines = st.multiselect(
             "Preferred Cuisines",
-            ["Indian", "Chinese", "Italian", "Mexican", "Thai", "Japanese", "Continental", "South Indian"],
+            list(dict.fromkeys(["Indian", "Chinese", "Italian", "Mexican", "Thai", "Japanese", "Continental", "South Indian"] + memory.get("preferred_cuisines", []))),
             default=memory.get("preferred_cuisines", []),
         )
         new_spice = st.select_slider(
@@ -176,7 +180,7 @@ with st.sidebar:
         )
         new_equipment = st.multiselect(
             "Cooking Equipment",
-            ["induction_stove", "gas_stove", "oven", "microwave", "pressure_cooker", "air_fryer", "mixer_grinder"],
+            list(dict.fromkeys(["induction_stove", "gas_stove", "oven", "microwave", "pressure_cooker", "air_fryer", "mixer_grinder"] + memory.get("cooking_equipment", []))),
             default=memory.get("cooking_equipment", []),
         )
 
@@ -188,7 +192,7 @@ with st.sidebar:
                 "preferred_cuisines": new_cuisines,
                 "spice_preference": new_spice,
                 "cooking_equipment": new_equipment,
-            })
+            }, replace_lists=True)
             st.success("✅ Preferences saved!")
             st.rerun()
 
@@ -280,6 +284,12 @@ for message in st.session_state.messages:
         if message["role"] == "assistant" and message.get("steps"):
             with st.expander("🔍 View Agent's Reasoning Trace", expanded=False):
                 display_agent_steps(message["steps"])
+
+if st.session_state.get("request_error"):
+    st.error(st.session_state.request_error)
+    if st.button("🔄 Retry last request"):
+        process_user_input(st.session_state.failed_prompt, retry=True)
+        st.rerun()
 
 # Chat input
 if prompt := st.chat_input("What should I cook today? Tell me your constraints..."):
